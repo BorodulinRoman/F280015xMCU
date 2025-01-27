@@ -86,7 +86,7 @@ void main(void)
         if(newDataReceivedSlave)
         {
             // We have new data in rxBufferSlave
-            UINT8 someSlaveByte = rxBufferSlave[18];
+            UINT8 someSlaveByte = rxBufferSlave[0];
             newDataReceivedSlave = false;
 
             // Parse or handle the data from the Slave side
