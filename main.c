@@ -1,86 +1,73 @@
 /******************************************************************************
  * File:    main.c
- * Device:  TMS320F2800157
- * Author:  Your Name
+ * Device:  TMS320F280015x (or similar)
  *
- * Description:
- *    - Initializes system clock, peripherals, and interrupt controller.
- *    - Configures UART as defined in uart_operation_master.c.
- *    - Transmits a message over UART every ~10 ms using a software delay.
- *    - Checks if new data is received in each loop iteration.
+ * Purpose:
+ *   - Initialize system & SCI (UART).
+ *   - Initialize CPU Timer0 to interrupt every 10 ms (or another rate).
+ *   - Timer0 ISR calls uartMsgTxMaster() directly, sending a packet each period.
  ******************************************************************************/
 
 #include "device.h"
 #include "driverlib.h"
+#include "timers.h"
 #include "uart_operation_master.h"
 
-// Optional: If you don't have DEVICE_DELAY_US, you can do your own loop-based delay:
-//  Example: ~10 ms at 100 MHz CPU (very approximate!)
-//  static void softwareDelay10ms(void)
-//  {
-//      volatile uint32_t i;
-//      for (i = 0; i < 1000000UL; i++)
-//      {
-//          // do nothing
-//      }
-//  }
+//
+// Let's define 10 ms = 10,000 microseconds => 50 Hz half-period
+//
+#define TIMER_PERIOD_US   10000.0f
 
-int main(void)
+void main(void)
 {
-    // -------------------------------------------------------------------------
-    // System Initialization
-    // -------------------------------------------------------------------------
-    // Set up device clocks and peripherals
+    //---------------------------------------------------------------------
+    // 1) Basic device init (clocks, watchdog)
+    //---------------------------------------------------------------------
     Device_init();
-
-    // Disable watchdog (so it doesn't reset the device during our delay)
-    SysCtl_disableWatchdog();
-
-    // Initialize GPIO
     Device_initGPIO();
 
-    // Initialize interrupt module
+    //---------------------------------------------------------------------
+    // 2) Initialize interrupt module & vector table
+    //---------------------------------------------------------------------
     Interrupt_initModule();
-
-    // Initialize the PIE vector table
     Interrupt_initVectorTable();
 
-    // -------------------------------------------------------------------------
-    // UART Initialization
-    // -------------------------------------------------------------------------
-    uartConfigMaster();  // from uart_operation_master.c
+    //---------------------------------------------------------------------
+    // 3) Initialize UART Master (pins, baud=115200, FIFO, etc.)
+    //---------------------------------------------------------------------
+    uartConfigMaster();
 
-    // Optionally enable global interrupts if not enabled in uartConfigMaster
-    EINT;   // Enable Global interrupt INTM
-    ERTM;   // Enable Global real-time interrupt DBGM
+    //---------------------------------------------------------------------
+    // 4) Initialize CPU Timer0 for 10 ms period
+    //---------------------------------------------------------------------
+    initCPUTimer0(TIMER_PERIOD_US);
 
-    // -------------------------------------------------------------------------
-    // Main Application Loop
-    // -------------------------------------------------------------------------
+    //---------------------------------------------------------------------
+    // 5) Enable global interrupts
+    //---------------------------------------------------------------------
+    EINT;   // Enable CPU interrupts
+    ERTM;   // Enable real-time debug interrupt
+
+    //---------------------------------------------------------------------
+    // 6) Main loop
+    //---------------------------------------------------------------------
     while(1)
     {
-        // 1) Transmit a message
-        uartMsgTxMaster();
-        //    This will cause the TX interrupt to fire and send out the data.
+        //
+        // Timer0 ISR will call uartMsgTxMaster() automatically every 10 ms.
+        // No need to check a flag or call it manually.
+        //
 
-        // 2) Delay ~10 ms (busy-wait)
-        //    If you have the macro, use it:
-        DEVICE_DELAY_US(10000);
-        //    Otherwise, use your own function or for-loop based delay:
-        // softwareDelay10ms();
-
-        // 3) Check if we received a complete message
+        // If you also receive data, check the newDataReceivedMaster flag here:
         if(newDataReceivedMaster)
         {
             // We have new data in rxBufferMaster
-            // Process or parse the data
-            uartMsgRxMaster();
-
-            // Reset the flag so we can detect new arrivals
             newDataReceivedMaster = false;
+            // Parse or handle the data
+            // ...
         }
-    }
 
-    // Should never get here
-    return 0;
+        // Other background tasks...
+        NOP;
+    }
 }
