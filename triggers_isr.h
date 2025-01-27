@@ -1,18 +1,18 @@
-#ifndef TRIGGERS_ISR_H
-#define TRIGGERS_ISR_H
-
-#include <stdbool.h>
-#include "device.h"
-#include "driverlib.h"
-
+//#ifndef TRIGGERS_ISR_H
+//#define TRIGGERS_ISR_H
 //
-// Sets up the CPU Timer0 ISR in the interrupt controller
+//#include <stdbool.h>
+//#include "device.h"
+//#include "driverlib.h"
 //
-void initTimer0Interrupt(void);
-
+////
+//// Sets up the CPU Timer0 ISR in the interrupt controller
+////
+//void initTimer0Interrupt(void);
 //
-// The ISR function itself, called on CPU Timer0 overflow
+////
+//// The ISR function itself, called on CPU Timer0 overflow
+////
+//__interrupt void cpuTimer0ISR(void);
 //
-__interrupt void cpuTimer0ISR(void);
-
-#endif // TRIGGERS_ISR_H
+//#endif // TRIGGERS_ISR_H

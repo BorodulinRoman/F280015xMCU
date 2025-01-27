@@ -21,9 +21,24 @@
 // Let's define 10 ms = 10,000 microseconds => 50 Hz half-period
 //
 #define TIMER_PERIOD_US   10000.0f
+// Define the states
+#define PBIT                        1
+#define IDNTIF_ACU_GROUND_BASE      2
+#define IDNTIF_ACU_RFM              3
+#define READY                       4
+#define ARMING                      5
+#define ARMED                       6
+#define DET                         7
+#define END_MISSION                 8
+#define DISARM                      9
+#define ACU_ERROR                   10
+#define RFM_ERROR                   11
+#define SW_MIS_ACTIVITION           12
+volatile int Current_state = PBIT;
 
 void main(void)
 {
+    UINT8 stateTriggerByte;
     //---------------------------------------------------------------------
     // 1) Basic device init (clocks, watchdog)
     //---------------------------------------------------------------------
@@ -60,6 +75,7 @@ void main(void)
     //---------------------------------------------------------------------
     while(1)
     {
+
         //
         // MASTER:
         // Timer0 ISR calls uartMsgTxMaster() every 10 ms automatically.
@@ -67,33 +83,123 @@ void main(void)
         //
         if(newDataReceivedMaster)
         {
-            // We have new data in rxBufferMaster
-            // For example, read the last CRC byte at index 19:
-            UINT8 someMasterByte = rxBufferMaster[19];
             newDataReceivedMaster = false;
-
-            // Parse or handle the data from the Master side
-            // ...
         }
 
-        //
-        // SLAVE:
-        // If new data arrives on SCIB, scibRxISR sets newDataReceivedSlave,
-        // then starts Timer1 for a 2 ms delay. The Timer1 ISR calls
-        // uartMsgTxSlave() to send random data. If you want to process
-        // the Slave's received data in the main loop:
-        //
         if(newDataReceivedSlave)
         {
-            // We have new data in rxBufferSlave
-            UINT8 someSlaveByte = rxBufferSlave[0];
+            stateTriggerByte = g_lastMspMsg.payload[2];
             newDataReceivedSlave = false;
-
-            // Parse or handle the data from the Slave side
-            // ...
         }
 
-        // Other background tasks...
-        NOP;
+        switch (Current_state)
+           {
+           case PBIT: // 1: Power-on Built-In Test
+
+
+               if (stateTriggerByte == 0x02)
+               {
+                   Current_state = IDNTIF_ACU_GROUND_BASE; // Transition to IDENT_ACU
+               }
+               break;
+
+           case IDNTIF_ACU_GROUND_BASE: // 2: Identify ACU - Ground Base
+
+
+               if (stateTriggerByte == 0x03)
+               {
+                   Current_state = IDNTIF_ACU_RFM; // Transition to ACU-RFM
+               }
+               break;
+
+           case IDNTIF_ACU_RFM: // 3: ACU-RFM Communication Established
+
+
+               if (stateTriggerByte == 0x04)
+               {
+                   Current_state = READY; // Transition to READY
+               }
+               break;
+
+           case READY: // 4: System Ready
+
+
+               if (stateTriggerByte == 0x05)
+               {
+                   Current_state = ARMING; // Transition to ARMING
+               }
+               break;
+
+           case ARMING: // 5: Arming State
+
+
+               if (stateTriggerByte == 0x06)
+               {
+                   Current_state = ARMED; // Transition to ARMED
+               }
+               break;
+           case ARMED: // 6: Armed State
+
+
+               if (stateTriggerByte == 0x07)
+               {
+                   Current_state = DET;
+               }
+               break;
+           case DET: // 7: DET State
+
+               if (stateTriggerByte == 0x08)
+               {
+                   Current_state = PBIT;
+               }
+               break;
+           case END_MISSION: // 8: DET State
+
+
+               if (stateTriggerByte == 0x08)
+               {
+                   Current_state = PBIT;
+               }
+               break;
+           case DISARM: // 9: DISARM State
+
+
+               if (stateTriggerByte == 0x08)
+               {
+                   Current_state = PBIT;
+               }
+               break;
+           case ACU_ERROR: // 10: ACU_ERROR State
+
+
+               if (stateTriggerByte == 0x08)
+               {
+                   Current_state = PBIT;
+               }
+               break;
+           case RFM_ERROR: // 11: RFM_ERROR State
+
+
+               if (stateTriggerByte == 0x08)
+               {
+                   Current_state = PBIT;
+               }
+               break;
+           case SW_MIS_ACTIVITION: // 12: SW_MIS_ACTIVITION State
+
+
+               if (stateTriggerByte == 0x08)
+               {
+                   Current_state = PBIT;
+               }
+               break;
+
+
+           default:
+               Current_state = PBIT;
+               break;
+           }
+
+
     }
 }
