@@ -62,6 +62,8 @@ void main(void)
         if(newDataReceivedMaster)
         {
             // We have new data in rxBufferMaster
+
+            UINT8 someByte = rxBufferMaster[0];
             newDataReceivedMaster = false;
             // Parse or handle the data
             // ...
