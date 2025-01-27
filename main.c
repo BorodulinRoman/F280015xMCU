@@ -1,86 +1,99 @@
 /******************************************************************************
  * File:    main.c
- * Device:  TMS320F2800157
- * Author:  Your Name
+ * Device:  TMS320F280015x (or similar)
  *
- * Description:
- *    - Initializes system clock, peripherals, and interrupt controller.
- *    - Configures UART as defined in uart_operation_master.c.
- *    - Transmits a message over UART every ~10 ms using a software delay.
- *    - Checks if new data is received in each loop iteration.
+ * Purpose:
+ *   - Initializes system, SCIA (Master), SCIB (Slave).
+ *   - CPU Timer0 triggers Master transmissions every 10 ms (SCI-A).
+ *   - When Slave (SCI-B) receives 20 bytes, it starts Timer1 for 2 ms.
+ *     After 2 ms, Timer1 ISR calls `uartMsgTxSlave()` to send a random packet.
+ *   - The main loop checks flags from both Master and Slave to see if data
+ *     arrived, and can process it if needed.
  ******************************************************************************/
 
 #include "device.h"
 #include "driverlib.h"
+#include "timers.h"
 #include "uart_operation_master.h"
+#include "uart_operation_slave.h"    // <--- Include the slave interface
 
-// Optional: If you don't have DEVICE_DELAY_US, you can do your own loop-based delay:
-//  Example: ~10 ms at 100 MHz CPU (very approximate!)
-//  static void softwareDelay10ms(void)
-//  {
-//      volatile uint32_t i;
-//      for (i = 0; i < 1000000UL; i++)
-//      {
-//          // do nothing
-//      }
-//  }
+//
+// Let's define 10 ms = 10,000 microseconds => 50 Hz half-period
+//
+#define TIMER_PERIOD_US   10000.0f
 
-int main(void)
+void main(void)
 {
-    // -------------------------------------------------------------------------
-    // System Initialization
-    // -------------------------------------------------------------------------
-    // Set up device clocks and peripherals
+    //---------------------------------------------------------------------
+    // 1) Basic device init (clocks, watchdog)
+    //---------------------------------------------------------------------
     Device_init();
-
-    // Disable watchdog (so it doesn't reset the device during our delay)
-    SysCtl_disableWatchdog();
-
-    // Initialize GPIO
     Device_initGPIO();
 
-    // Initialize interrupt module
+    //---------------------------------------------------------------------
+    // 2) Initialize interrupt module & vector table
+    //---------------------------------------------------------------------
     Interrupt_initModule();
-
-    // Initialize the PIE vector table
     Interrupt_initVectorTable();
 
-    // -------------------------------------------------------------------------
-    // UART Initialization
-    // -------------------------------------------------------------------------
-    uartConfigMaster();  // from uart_operation_master.c
+    //---------------------------------------------------------------------
+    // 3) Initialize UART Master (SCI-A) and Timer0
+    //---------------------------------------------------------------------
+    uartConfigMaster();                  // SCIA pins: 28=RX, 29=TX
+    initCPUTimer0(TIMER_PERIOD_US);      // 10 ms period for Master transmissions
 
-    // Optionally enable global interrupts if not enabled in uartConfigMaster
-    EINT;   // Enable Global interrupt INTM
-    ERTM;   // Enable Global real-time interrupt DBGM
+    //---------------------------------------------------------------------
+    // 4) Initialize UART Slave (SCI-B)
+    //    This also calls initSlaveTimer2ms() for the 2 ms delayed response
+    //---------------------------------------------------------------------
+    uartConfigSlave();                   // SCIB pins: 23=RX, 40=TX
+    // Timer1 remains stopped until scibRxISR sees 20 bytes.
 
-    // -------------------------------------------------------------------------
-    // Main Application Loop
-    // -------------------------------------------------------------------------
+    //---------------------------------------------------------------------
+    // 5) Enable global interrupts
+    //---------------------------------------------------------------------
+    EINT;   // Enable CPU interrupts
+    ERTM;   // Enable real-time debug interrupt
+
+    //---------------------------------------------------------------------
+    // 6) Main loop
+    //---------------------------------------------------------------------
     while(1)
     {
-        // 1) Transmit a message
-        uartMsgTxMaster();
-        //    This will cause the TX interrupt to fire and send out the data.
-
-        // 2) Delay ~10 ms (busy-wait)
-        //    If you have the macro, use it:
-        DEVICE_DELAY_US(10000);
-        //    Otherwise, use your own function or for-loop based delay:
-        // softwareDelay10ms();
-
-        // 3) Check if we received a complete message
+        //
+        // MASTER:
+        // Timer0 ISR calls uartMsgTxMaster() every 10 ms automatically.
+        // If new data arrives on SCIA (master), sciaRxISR sets newDataReceivedMaster:
+        //
         if(newDataReceivedMaster)
         {
             // We have new data in rxBufferMaster
-            // Process or parse the data
-            uartMsgRxMaster();
-
-            // Reset the flag so we can detect new arrivals
+            // For example, read the last CRC byte at index 19:
+            UINT8 someMasterByte = rxBufferMaster[19];
             newDataReceivedMaster = false;
-        }
-    }
 
-    // Should never get here
-    return 0;
+            // Parse or handle the data from the Master side
+            // ...
+        }
+
+        //
+        // SLAVE:
+        // If new data arrives on SCIB, scibRxISR sets newDataReceivedSlave,
+        // then starts Timer1 for a 2 ms delay. The Timer1 ISR calls
+        // uartMsgTxSlave() to send random data. If you want to process
+        // the Slave's received data in the main loop:
+        //
+        if(newDataReceivedSlave)
+        {
+            // We have new data in rxBufferSlave
+            UINT8 someSlaveByte = rxBufferSlave[18];
+            newDataReceivedSlave = false;
+
+            // Parse or handle the data from the Slave side
+            // ...
+        }
+
+        // Other background tasks...
+        NOP;
+    }
 }

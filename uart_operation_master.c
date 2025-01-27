@@ -194,7 +194,7 @@ __interrupt void sciaRxISR(void)
         // While RX FIFO not empty, read data out
         while(SCI_getRxFIFOStatus(SCIA_BASE) != SCI_FIFO_RX0)
         {
-            uint16_t received = SCI_readCharNonBlocking(SCIA_BASE);
+            UINT16 received = SCI_readCharNonBlocking(SCIA_BASE);
 
             // Store in rxBufferMaster if space allows
             if(rxIndexMaster < RX_M_MSG_LENGTH)
@@ -227,12 +227,12 @@ __interrupt void sciaRxISR(void)
 // =============================================================================
 __interrupt void sciaTxISR(void)
 {
-    uint16_t intStatus = SCI_getInterruptStatus(SCIA_BASE);
+    UINT16 intStatus = SCI_getInterruptStatus(SCIA_BASE);
 
     if(intStatus & SCI_INT_TXFF)
     {
         // FIFO space available
-        uint16_t fifoFree = 16U - SCI_getTxFIFOStatus(SCIA_BASE);
+        UINT16 fifoFree = 16U - SCI_getTxFIFOStatus(SCIA_BASE);
 
         // Fill TX FIFO while space remains and data is left to send
         while((fifoFree > 0) && (txIndexMaster < txLengthMaster))
