@@ -4,11 +4,10 @@
  *              [0..7]=header, [8..27]=20-byte payload, [28]=CRC.
  *              If valid, sets newDataReceivedSlave=true and stores to g_lastMspMsg.
  ******************************************************************************/
-
-#include "uart_operation_slave.h"
 #include <string.h>
+#include "uart_operation_slave.h"
+#include "globals_and_gpio.h"
 
-volatile bool  newDataReceivedSlave = false;
 volatile UINT8 rxBufferSlave[RX_S_MSG_LENGTH];
 mspV2Message_t g_lastMspMsg;
 

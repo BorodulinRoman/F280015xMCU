@@ -10,17 +10,17 @@
  *   - The main loop checks flags from both Master and Slave to see if data
  *     arrived, and can process it if needed.
  ******************************************************************************/
-
+#include "GenericTypeDefs.h"
 #include "device.h"
 #include "driverlib.h"
 #include "timers.h"
 #include "uart_operation_master.h"
-#include "uart_operation_slave.h"    // <--- Include the slave interface
-
+#include "uart_operation_slave.h"
+#include "globals_and_gpio.h"
+#include "filters.h"
 //
 // Let's define 10 ms = 10,000 microseconds => 50 Hz half-period
 //
-#define TIMER_PERIOD_US   10000.0f
 // Define the states
 #define PBIT                        1
 #define IDNTIF_ACU_GROUND_BASE      2
@@ -34,23 +34,27 @@
 #define ACU_ERROR                   10
 #define RFM_ERROR                   11
 #define SW_MIS_ACTIVITION           12
-volatile int Current_state = PBIT;
 
-void main(void)
-{
+volatile UINT32 SystemTime = 0;
+volatile bool pbit_ok = false;
+volatile bool p3v3_ok = false;
+volatile bool safety_5v = false;
+
+void main(void){
     UINT8 stateTriggerByte;
+    Current_state = PBIT;
     //---------------------------------------------------------------------
     // 1) Basic device init (clocks, watchdog)
     //---------------------------------------------------------------------
     Device_init();
     Device_initGPIO();
-
+    setupGPIOs();
     //---------------------------------------------------------------------
     // 2) Initialize interrupt module & vector table
     //---------------------------------------------------------------------
     Interrupt_initModule();
     Interrupt_initVectorTable();
-
+    initSystemTimer();
     //---------------------------------------------------------------------
     // 3) Initialize UART Master (SCI-A) and Timer0
     //---------------------------------------------------------------------
@@ -70,17 +74,18 @@ void main(void)
     EINT;   // Enable CPU interrupts
     ERTM;   // Enable real-time debug interrupt
 
+    resetSystemTimer(); // Reset the timer
+    while (SystemTime <= WAKE_UP)
+    {
+        SystemTime = getSystemTime();
+    }
+    resetSystemTimer(); // Reset the timer
     //---------------------------------------------------------------------
     // 6) Main loop
     //---------------------------------------------------------------------
     while(1)
     {
-
-        //
-        // MASTER:
-        // Timer0 ISR calls uartMsgTxMaster() every 10 ms automatically.
-        // If new data arrives on SCIA (master), sciaRxISR sets newDataReceivedMaster:
-        //
+        SystemTime = getSystemTime();
         if(newDataReceivedMaster)
         {
             newDataReceivedMaster = false;
@@ -89,27 +94,36 @@ void main(void)
         if(newDataReceivedSlave)
         {
             stateTriggerByte = g_lastMspMsg.payload[2];
+            resetSystemTimer(); // Reset the timer
             newDataReceivedSlave = false;
+
         }
 
         switch (Current_state)
            {
            case PBIT: // 1: Power-on Built-In Test
+               if (!p3v3_ok)
+                   p3v3_ok = gpio_stability_filter(25, 80,P3V3_GOOD); // Check if P3V3 is stable for 50 ms and over 80%
+//               if (!safety_5v)
+//                   safety_5v = gpio_stability_filter(25, 80,P5V_SAFETY_GOOD_ISO);
 
+               if (p3v3_ok) // add && 5v_safety at main project
+                   Current_state = IDNTIF_ACU_GROUND_BASE; // Transition to IDNTIF_ACU_GROUND_BASE
 
-               if (stateTriggerByte == 0x02)
-               {
-                   Current_state = IDNTIF_ACU_GROUND_BASE; // Transition to IDENT_ACU
-               }
+               if(SystemTime > TIMEOUT_PBIT && Current_state == PBIT)
+                       Current_state = RFM_ERROR; // Transition to IDNTIF_ACU_GROUND_BASE
+
                break;
 
            case IDNTIF_ACU_GROUND_BASE: // 2: Identify ACU - Ground Base
 
-
-               if (stateTriggerByte == 0x03)
+               if (g_lastMspMsg.function == 0x84)
                {
                    Current_state = IDNTIF_ACU_RFM; // Transition to ACU-RFM
                }
+
+               if(gpio_stability_filter(25, 80,SW1_EN_GPIO))
+                   Current_state = ACU_ERROR; // Transition to IDNTIF_ACU_GROUND_BASE
                break;
 
            case IDNTIF_ACU_RFM: // 3: ACU-RFM Communication Established

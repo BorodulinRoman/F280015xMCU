@@ -6,12 +6,12 @@
  ******************************************************************************/
 #include "GenericTypeDefs.h"
 #include "uart_operation_master.h"
+#include "globals_and_gpio.h"
 
 // -----------------------------------------------------------------------------
 // Global variables (from header):
 // -----------------------------------------------------------------------------
 volatile UINT8 rxBufferMaster[RX_M_MSG_LENGTH];
-volatile bool newDataReceivedMaster = false;
 
 // -----------------------------------------------------------------------------
 // Local (static) variables to manage reception
