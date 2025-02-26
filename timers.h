@@ -6,29 +6,18 @@
 #include "device.h"
 #include "driverlib.h"
 
+// Global variables
 extern volatile uint32_t systemTimeCounter; // System time counter in milliseconds
-extern volatile bool systemTimeElapsed; // Flag to indicate if system time has elapsed
+extern volatile bool systemTimeElapsed;       // Flag indicating if the maximum time has elapsed
 
-//
-// initCPUTimer0():
-//   Configures CPU Timer0 to overflow every 'period_us' microseconds.
-//   The Timer0 ISR will call 'uartMsgTxMaster()' (master transmit).
-//
-void initCPUTimer0(float period_us);
-
-//
-// initSlaveTimer2ms():
-//   Configures CPU Timer1 for ~2 ms at 100 MHz. The timer remains
-//   stopped until the slave receives a 20-byte packet in scibRxISR().
-//   Then scibRxISR() starts Timer1. After 2 ms, Timer1 ISR calls 'uartMsgTxSlave()'.
-//
-void initSlaveTimer2ms(void);
-
-
-// System Timer APIs
-void initSystemTimer(void);         // Initialize the system timer
-void resetSystemTimer(void);        // Reset the system timer counter
-uint32_t getSystemTime(void);       // Get the current system time in milliseconds
-bool hasSystemTimeElapsed(void);    // Check if 20 seconds have elapsed
+// System Timer APIs (using Timer2)
+// Initializes the system timer (Timer2) with a 1 ms tick.
+void initSystemTimer(void);
+// Resets the system timer counter and elapsed flag.
+void resetSystemTimer(void);
+// Returns the current system time in milliseconds.
+uint32_t getSystemTime(void);
+// Checks if the system time has elapsed (e.g., 60 seconds).
+bool hasSystemTimeElapsed(void);
 
 #endif // TIMERS_H

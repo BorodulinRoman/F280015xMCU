@@ -1,11 +1,19 @@
 #include "globals_and_gpio.h"
 
-// Global Variables
 
-volatile int Current_state;
-volatile bool newDataReceivedMaster = false;
+// Define the global variables.
+volatile int Current_state = 0;
 volatile bool newDataReceivedSlave = false;
 
+// Define the Master RX buffer (41 bytes for our MSP message) and its index:
+volatile UINT8 rxBufferMaster[41] = {0};
+volatile UINT16 rxIndexMaster = 0;
+volatile bool newDataReceivedMaster = false;
+
+// Define the buffers and indices (for Master RX/TX).
+volatile UINT8 txBufferMaster[41] = {0};
+volatile UINT16 txIndexMaster = 0;
+volatile UINT16 txLengthMaster = 0;
 // Function to set up the GPIOs
 void setupGPIOs(void)
 {
